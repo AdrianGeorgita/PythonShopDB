@@ -24,6 +24,7 @@ class MainMenu:
         self.products_frame = None
         self.details_frame = None
         self.cart_frame = None
+        self.wishlists_frame = None
 
         self.create_main_menu_frame()
 
@@ -113,10 +114,40 @@ class MainMenu:
             labels_frame.grid_columnconfigure(i, weight=1)
 
     def view_wishlists(self):
-        # Placeholder for the "Wishlists" functionality
-        print("View Wishlists")
+        # View Wishlists
+        global id_client
+        # Destroy existing frames
+        if self.products_frame:
+            self.products_frame.destroy()
+
+        if self.details_frame:
+            self.details_frame.destroy()
+
+        if self.cart_frame:
+            self.cart_frame.destroy()
+
+        if self.wishlists_frame:
+            self.wishlists_frame.destroy()
+
+        # Create a frame below the buttons for cart items
+        wishlists_frame = tk.Frame(self.main_menu_frame, bg="#333333")
+        wishlists_frame.pack(side="top", fill='both', anchor='n')
+        self.wishlists_frame = wishlists_frame
+
+        # Replace the query with your actual query to fetch cart items from the database
+        cur = connection.cursor()
+        cur.execute(
+            'SELECT w.ID_wishlist, prod.Denumire, prod.Producator FROM wishlists w, produse prod \
+             WHERE w.ID_client = :id_client AND w.ID_produs = prod.ID_produs',
+            {'id_client': id_client})
+        wishlists_items = []
+        for result in cur:
+            #cart_items.append((result[0], result[1], result[2], result[3], result[4]))
+            pass
+        cur.close()
 
     def view_cart(self):
+        global id_client
         # Destroy existing frames
         if self.products_frame:
             self.products_frame.destroy()
@@ -135,15 +166,18 @@ class MainMenu:
         # Replace the query with your actual query to fetch cart items from the database
         cur = connection.cursor()
         cur.execute(
-            'SELECT p.Denumire, p.Pret * CASE WHEN procent_reducere > 0 THEN (1+prom.procent_reducere/100) ELSE 1 END FROM produse p, promotii prom WHERE p.id_promotie = prom.id_promotie')
+            'SELECT c.ID_cos, prod.Denumire, prod.Producator, c.Cantitate, prod.Pret * CASE WHEN prom.procent_reducere > 0 THEN (1+prom.procent_reducere/100) ELSE 1 END FROM cosuri c, produse prod, promotii prom \
+             WHERE c.ID_client = :id_client AND c.ID_produs = prod.ID_produs AND prod.Id_Promotie = prom.Id_Promotie', {'id_client': id_client})
         cart_items = []
         for result in cur:
-            cart_items.append((result[0], 1, result[1]))  # Assuming the default amount is 1 for simplicity
+                cart_items.append((result[0], result[1], result[2], result[3], result[4]))
         cur.close()
 
+        filtered_cart_items = [item[1:] for item in cart_items]
+
         cart_data = [
-            ("Denumire Produs", "Cantitate", "Pret"),
-            *cart_items
+            ("Denumire Produs", "Producator", "Cantitate", "Pret"),
+            *filtered_cart_items
         ]
 
         for row_idx, row_data in enumerate(cart_data):
@@ -160,32 +194,32 @@ class MainMenu:
 
             for col_idx, value in enumerate(row_data):
                 # Add a label or entry based on the column
-                if col_idx == 1 and row_idx > 0:  # Column for "Cantitate"
+                if col_idx == 2 and row_idx > 0:  # Column for "Cantitate"
                     entry = tk.Entry(cart_frame, bg=bg_color if row_idx % 2 == 0 else "#555555", fg="white",
                                      font=('Helvetica', 12), justify="center")
                     entry.insert(0, str(value))  # Insert the default quantity
                     entry.grid(row=row_idx, column=col_idx, sticky="nsew")
 
                     # Bind the function to update the database on focus out
-                    entry.bind("<FocusOut>", lambda event, r=row_data, e=entry: self.update_quantity(event, r, e))
+                    entry.bind("<FocusOut>", lambda event, r=cart_items[row_idx-1], e=entry: self.update_quantity(event, r, e))
                 else:
                     label = tk.Label(cart_frame, text=str(value), bg=bg_color if row_idx % 2 == 0 else "#555555",
                                      fg="white", font=('Helvetica', 12), padx=10, pady=5)
                     label.grid(row=row_idx, column=col_idx, sticky="nsew")
 
-            # Add a 'Remove' button in the last column for rows
+                # Add a 'Remove' button in the last column for rows
             if show_button:
                 remove_button = tk.Button(cart_frame, text="Remove",
-                                          command=lambda r=row_data: self.remove_from_cart(r),
+                                          command=lambda r=cart_items[row_idx-1]: self.remove_from_cart(r),
                                           bg=bg_color, fg="white", font=('Helvetica', 12), padx=10, pady=5)
                 remove_button.grid(row=row_idx, column=len(row_data), sticky="nsew")
 
-        # Configure row and column weights to make labels/entries expand with resizing
-        for i in range(len(cart_data)):
-            cart_frame.grid_rowconfigure(i, weight=1)
+            # Configure row and column weights to make labels/entries expand with resizing
+            for i in range(len(cart_data)):
+                cart_frame.grid_rowconfigure(i, weight=1)
 
-        for i in range(len(cart_data[0]) + 1):  # Additional column for 'Remove' button
-            cart_frame.grid_columnconfigure(i, weight=1)
+            for i in range(len(cart_data[1]) + 1):  # Additional column for 'Remove' button
+                cart_frame.grid_columnconfigure(i, weight=1)
 
     def view_orders(self):
         # Placeholder for the "Orders" functionality
@@ -279,13 +313,44 @@ class MainMenu:
         print(f"Added {product[1]} to Wishlist")
 
     def add_to_cart(self, product):
-        # Placeholder for adding to cart functionality
-        print(f"Added {product[1]} to Cart")
+        # Add a Product to the Shopping Cart
+        global id_client
+
+        #https://docs.oracle.com/cd/B13789_01/appdev.101/b10795/adfns_tr.htm
+        #Check this for a trigger that either updates or inserts a new row
+
+        try:
+            cur = connection.cursor()
+            query = 'INSERT INTO cosuri(id_cos, cantitate, id_client, id_produs) ' \
+                    'VALUES (NULL,1,:id_client,:id_produs)'
+            cur.execute(query, {
+                'id_client': id_client,
+                'id_produs': product[0]
+            })
+            cur.execute('commit')
+            cur.close()
+            #print(f"Added {product[0]} to Cart")
+        except cx_Oracle.DatabaseError as e:
+            print("Database error:", str(e))
+            messagebox.showerror("Database Error",
+                                 "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
 
     def remove_from_cart(self, cart_item_data):
-        # Implement the logic to remove the item from the cart
-        print(f"Removed {cart_item_data[1]} from Cart")
-        # You need to add the logic here to remove the item from the database or any data structure you are using for the cart
+        # Remove the item from the cart
+
+        try:
+            cur = connection.cursor()
+            query = 'DELETE FROM cosuri WHERE id_cos = :deletedItemId'
+            cur.execute(query, {
+                'deletedItemId': cart_item_data[0]
+            })
+            cur.execute('commit')
+            cur.close()
+        except cx_Oracle.DatabaseError as e:
+            print("Database error:", str(e))
+            messagebox.showerror("Database Error",
+                 "An error occurred while interacting with the database. Please try again. [Error Code: "+str(e)+"]")
+
         # Refresh the cart view after removing the item
         self.view_cart()
 
@@ -293,15 +358,22 @@ class MainMenu:
         # Extract the updated quantity from the entry
         updated_quantity = entry.get()
 
-        if not updated_quantity.isdigit() or int(updated_quantity) <= 0 or int(updated_quantity) > 999:
-            messagebox.showerror("Error", "Please enter a valid positive integer for quantity.")
-            return
-
         # Update the database with the new quantity
-        # Use row_data to identify the specific item (e.g., product ID) for the update
-        # Implement the database update logic here
+        try:
+            cur = connection.cursor()
+            query = 'UPDATE cosuri SET cantitate = :quantity WHERE id_cos = :modifiedCartId'
+            cur.execute(query, {
+                'quantity': updated_quantity,
+                'modifiedCartId':row_data[0]
+            })
+            cur.execute('commit')
+            cur.close()
+            #print(f"Updated quantity for {row_data[0]} to {updated_quantity}")
+        except cx_Oracle.DatabaseError as e:
+            print("Database error:", str(e))
+            messagebox.showerror("Database Error",
+                 "An error occurred while interacting with the database. Please try again. [Error Code: "+str(e)+"]")
 
-        print(f"Updated quantity for {row_data[0]} to {updated_quantity}")
 
 class LoginMenu:
     def __init__(self, root):
