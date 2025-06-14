@@ -1,10 +1,31 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
-import cx_Oracle
+import oracledb
 import random
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+import hashlib
 
-connection = cx_Oracle.connect("bd124", "bd124", "bd-dc.cs.tuiasi.ro:1539/orcl")
+load_dotenv()
+
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
+DB_PORT = os.getenv('DB_PORT')
+DB_SERVICE = os.getenv('DB_SERVICE')
+
+connection_string = f"{DB_HOST}:{DB_PORT}/{DB_SERVICE}"
+
+try:
+    connection = oracledb.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        dsn=connection_string
+    )
+except oracledb.Error as e:
+    print(f"Database connection error: {e}")
+    raise
 
 id_client = None
 is_admin = False
@@ -142,7 +163,7 @@ class MainMenu:
 
                         cur.execute('commit')
                         self.view_change_products()
-                    except cx_Oracle.DatabaseError as e:
+                    except oracledb.DatabaseError as e:
                         print("Database error:", str(e))
                         messagebox.showerror("Database Error",
                                              "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -165,7 +186,7 @@ class MainMenu:
 
                         cur.execute('commit')
                         self.view_change_products()
-                    except cx_Oracle.DatabaseError as e:
+                    except oracledb.DatabaseError as e:
                         print("Database error:", str(e))
                         messagebox.showerror("Database Error",
                                              "An error occurred while interacting with the database. Please try again. [Error Code: " + str(
@@ -622,7 +643,7 @@ class MainMenu:
 
             cur.execute('commit')
             self.view_orders()
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             error, = e.args
             if str(error.code) == "20001":
                 print("Custom application error:", str(e))
@@ -799,7 +820,7 @@ class MainMenu:
 
                     cur.close()
 
-                except cx_Oracle.DatabaseError as e:
+                except oracledb.DatabaseError as e:
                     print("Database error:", str(e))
                     messagebox.showerror("Database Error",
                                      "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -830,7 +851,7 @@ class MainMenu:
                                            bg="#555555", fg="white", font=('Helvetica', 14))
                 confirm_button.pack(pady=10)
 
-            except cx_Oracle.DatabaseError as e:
+            except oracledb.DatabaseError as e:
                 print("Database error:", str(e))
                 messagebox.showerror("Database Error",
                                      "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -855,7 +876,7 @@ class MainMenu:
                     cur.execute('commit')
                     cur.close()
 
-                except cx_Oracle.DatabaseError as e:
+                except oracledb.DatabaseError as e:
                     print("Database error:", str(e))
                     messagebox.showerror("Database Error",
                                      "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -935,7 +956,7 @@ class MainMenu:
 
             cur.execute('commit')
             cur.close()
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                                  "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -1026,7 +1047,7 @@ class MainMenu:
             cur.execute(query, {'id_client': id_client, 'nume':wishlistName})
             cur.execute('commit')
             cur.close()
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                                  "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -1045,7 +1066,7 @@ class MainMenu:
             cur.execute('commit')
             cur.close()
 
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                                  "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -1178,7 +1199,7 @@ class MainMenu:
                 cur.execute(query, {'id_cos': id_cos[0]})
             cur.execute('commit')
             cur.close()
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                                  "An error occurred while interacting with the database. Please try again. [Error Code: " + str(e) + "]")
@@ -1193,7 +1214,7 @@ class MainMenu:
             })
             cur.execute('commit')
             cur.close()
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                  "An error occurred while interacting with the database. Please try again. [Error Code: "+str(e)+"]")
@@ -1213,7 +1234,7 @@ class MainMenu:
             cur.execute('commit')
             cur.close()
             self.view_cart()
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                  "An error occurred while interacting with the database. Please try again. [Error Code: "+str(e)+"]")
@@ -1342,7 +1363,7 @@ class LoginMenu:
 
     def perform_account_creation(self):
         new_username = self.new_username_entry.get()
-        new_password = self.new_password_entry.get()
+        new_password = hashlib.sha256(self.new_password_entry.get().encode()).hexdigest()
         confirm_password = self.confirm_password_entry.get()
         billing_address = self.billing_address_entry.get()
         email = self.email_entry.get()
@@ -1383,7 +1404,7 @@ class LoginMenu:
             else:
                 messagebox.showerror("Error", "Password and Confirm Password do not match.")
 
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                                  "An error occurred while interacting with the database. Please try again. [Error Code: "+str(e)+"]")
@@ -1418,7 +1439,7 @@ class LoginMenu:
 
                 cur.execute(query, {
                     'username': username,
-                    'password': password
+                    'password': hashlib.sha256(password.encode()).hexdigest()
                 })
                 id_client = cur.fetchone()
                 cur.close()
@@ -1434,7 +1455,7 @@ class LoginMenu:
                 else:
                     messagebox.showerror("Error", "The username or the password is wrong!")
 
-        except cx_Oracle.DatabaseError as e:
+        except oracledb.DatabaseError as e:
             print("Database error:", str(e))
             messagebox.showerror("Database Error",
                                  "An error occurred while interacting with the database. Please try again. [Error Code: "+str(e)+"]")
